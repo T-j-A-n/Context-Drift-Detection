@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(pip3.11 install *)",
-      "Bash(python3.11 -m spacy download en_core_web_sm)",
-      "Bash(python3.11 -m coreferee install en)"
-    ]
-  }
-}
