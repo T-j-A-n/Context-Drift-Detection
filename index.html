@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Meeting Drift Monitor</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f0f13;
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 40px 20px;
+    }
+
+    h1 { font-size: 26px; margin-bottom: 6px; color: #fff; }
+    .subtitle { color: #666; font-size: 13px; margin-bottom: 36px; }
+
+    /* --- SETUP --- */
+    #setup-panel {
+      background: #1a1a24;
+      border-radius: 16px;
+      padding: 32px;
+      width: 100%;
+      max-width: 580px;
+      border: 1px solid #2a2a3a;
+    }
+
+    label {
+      display: block;
+      font-size: 11px;
+      color: #888;
+      margin-bottom: 8px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    textarea {
+      width: 100%;
+      padding: 14px;
+      border-radius: 10px;
+      border: 1px solid #2a2a3a;
+      background: #0f0f13;
+      color: #e0e0e0;
+      font-size: 15px;
+      resize: vertical;
+      min-height: 110px;
+      margin-bottom: 24px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    textarea:focus { border-color: #6c63ff; }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+    input[type=range] {
+      flex: 1;
+      -webkit-appearance: none;
+      appearance: none;
+      height: 4px;
+      background: #2a2a3a;
+      border-radius: 2px;
+      outline: none;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 18px; height: 18px;
+      background: #6c63ff;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+    .slider-tag { font-size: 12px; color: #666; }
+    #tolerance-val { color: #6c63ff; font-weight: 700; min-width: 36px; text-align: right; }
+
+    .btn {
+      padding: 12px 28px;
+      border-radius: 10px;
+      border: none;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .btn-primary { background: #6c63ff; color: #fff; width: 100%; }
+    .btn-primary:hover { background: #5a52d5; }
+    .btn-danger { background: #c0392b; color: #fff; }
+    .btn-danger:hover { background: #a93226; }
+
+    /* --- MONITOR --- */
+    #monitor-panel { display: none; width: 100%; max-width: 660px; }
+
+    .status-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #1a1a24;
+      border-radius: 12px;
+      padding: 14px 20px;
+      margin-bottom: 14px;
+      border: 1px solid #2a2a3a;
+    }
+    .dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: #555;
+      display: inline-block;
+      margin-right: 10px;
+      transition: background 0.3s, box-shadow 0.3s;
+    }
+    .dot.connected { background: #27ae60; box-shadow: 0 0 8px #27ae6088; }
+    .dot.recording { background: #e74c3c; box-shadow: 0 0 8px #e74c3c88; animation: blink 1.4s infinite; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.25} }
+
+    .context-chip {
+      background: #1a1a24;
+      border: 1px solid #2a2a3a;
+      border-radius: 10px;
+      padding: 10px 16px;
+      font-size: 13px;
+      color: #888;
+      margin-bottom: 14px;
+    }
+    .context-chip span { color: #9d97ff; font-weight: 600; }
+
+    .card {
+      background: #1a1a24;
+      border-radius: 16px;
+      padding: 26px;
+      margin-bottom: 14px;
+      border: 1px solid #2a2a3a;
+    }
+
+    .card-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #555;
+      margin-bottom: 14px;
+    }
+
+    /* Drift card */
+    #drift-score {
+      font-size: 68px;
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+      transition: color 0.4s;
+      color: #27ae60;
+    }
+    #drift-score.warn { color: #f39c12; }
+    #drift-score.alert { color: #e74c3c; }
+
+    .bar-track {
+      background: #252535;
+      border-radius: 6px;
+      height: 10px;
+      margin: 16px 0 6px;
+      overflow: hidden;
+    }
+    #drift-fill {
+      height: 100%;
+      width: 0%;
+      border-radius: 6px;
+      background: #27ae60;
+      transition: width 0.5s, background 0.5s;
+    }
+    .bar-labels { display: flex; justify-content: space-between; font-size: 11px; color: #555; }
+
+    .badge {
+      display: inline-block;
+      margin-top: 14px;
+      padding: 5px 16px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 600;
+      background: #27ae6018;
+      color: #27ae60;
+      border: 1px solid #27ae6030;
+      transition: all 0.3s;
+    }
+    .badge.warn { background: #f39c1218; color: #f39c12; border-color: #f39c1230; }
+    .badge.alert { background: #e74c3c18; color: #e74c3c; border-color: #e74c3c30; }
+
+    /* Transcript */
+    #transcript-text {
+      font-size: 15px;
+      line-height: 1.7;
+      color: #999;
+      min-height: 56px;
+      font-style: italic;
+    }
+
+    /* --- BANNER --- */
+    #banner {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      background: #c0392b;
+      color: #fff;
+      text-align: center;
+      padding: 13px;
+      font-size: 15px;
+      font-weight: 600;
+      z-index: 900;
+      animation: slideDown 0.3s ease;
+    }
+    @keyframes slideDown { from { transform: translateY(-100%); } to { transform: translateY(0); } }
+    #banner.show { display: block; }
+
+    /* --- OVERLAY --- */
+    #overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.88);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      animation: fadeIn 0.25s ease;
+    }
+    @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+    #overlay.show { display: flex; }
+
+    .alert-box {
+      background: #16080a;
+      border: 2px solid #e74c3c;
+      border-radius: 20px;
+      padding: 48px 44px;
+      max-width: 480px;
+      width: 92%;
+      text-align: center;
+      box-shadow: 0 0 80px #e74c3c30;
+      animation: pop 0.28s ease;
+    }
+    @keyframes pop { from{transform:scale(0.82)} to{transform:scale(1)} }
+
+    .alert-icon { font-size: 56px; margin-bottom: 14px; }
+    .alert-title { font-size: 26px; font-weight: 700; color: #e74c3c; margin-bottom: 10px; }
+    .alert-sub { font-size: 13px; color: #777; margin-bottom: 20px; }
+
+    #overlay-transcript {
+      background: #0c0305;
+      border: 1px solid #3a1010;
+      border-radius: 10px;
+      padding: 14px;
+      font-style: italic;
+      color: #ccc;
+      font-size: 14px;
+      line-height: 1.6;
+      margin-bottom: 16px;
+    }
+    #overlay-meta { font-size: 14px; color: #e74c3c; font-weight: 600; margin-bottom: 28px; }
+
+    #dismiss {
+      background: #e74c3c;
+      color: #fff;
+      border: none;
+      padding: 12px 40px;
+      border-radius: 10px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    #dismiss:hover { background: #c0392b; }
+  </style>
+</head>
+<body>
+
+<h1>Meeting Drift Monitor</h1>
+<p class="subtitle">Real-time semantic drift detection — flags when conversation leaves the meeting context</p>
+
+<!-- ── SETUP ── -->
+<div id="setup-panel">
+  <label for="ctx">Meeting Context / Topic</label>
+  <textarea id="ctx" placeholder="Describe what this meeting is about. E.g. 'Q3 sales strategy review — pipeline updates, deal closures, and revenue forecast for next quarter.'"></textarea>
+
+  <label>Sensitivity — how strictly to flag off-topic speech</label>
+  <div class="slider-row">
+    <span class="slider-tag">Loose</span>
+    <input type="range" id="tol-slider" min="0.10" max="0.70" step="0.05" value="0.40">
+    <span class="slider-tag">Strict</span>
+    <span id="tolerance-val">0.40</span>
+  </div>
+
+  <button class="btn btn-primary" id="start-btn">Start Monitoring</button>
+</div>
+
+<!-- ── MONITOR ── -->
+<div id="monitor-panel">
+
+  <div class="status-bar">
+    <div>
+      <span class="dot" id="dot"></span>
+      <span id="status-text">Connecting…</span>
+    </div>
+    <button class="btn btn-danger" id="stop-btn">Stop</button>
+  </div>
+
+  <div class="context-chip">Topic: <span id="ctx-display"></span></div>
+
+  <div class="card" style="text-align:center">
+    <div class="card-label">Drift Score</div>
+    <div id="drift-score">0.00</div>
+    <div class="bar-track"><div id="drift-fill"></div></div>
+    <div class="bar-labels"><span>0.0 on-topic</span><span>1.0 off-topic</span></div>
+    <div class="badge" id="badge">On Topic</div>
+  </div>
+
+  <div class="card">
+    <div class="card-label">Live Transcript</div>
+    <div id="live-text" style="font-size:15px;line-height:1.7;min-height:40px;margin-bottom:12px;"></div>
+    <div class="card-label" style="margin-top:8px;">Last Analyzed (15s window)</div>
+    <div id="transcript-text" style="font-size:13px;color:#777;font-style:italic;min-height:32px;">Waiting for first analysis…</div>
+    <div id="next-check" style="font-size:11px;color:#555;margin-top:8px;text-align:right;"></div>
+  </div>
+
+</div>
+
+<!-- ── BANNER (non-blocking) ── -->
+<div id="banner">⚠ Drift Detected — conversation may be off-topic</div>
+
+<!-- ── OVERLAY (first alert, blocking) ── -->
+<div id="overlay">
+  <div class="alert-box">
+    <div class="alert-icon">🚨</div>
+    <div class="alert-title">Off-Topic Drift Detected</div>
+    <div class="alert-sub">The conversation has diverged from the meeting context</div>
+    <div id="overlay-transcript"></div>
+    <div id="overlay-meta"></div>
+    <button id="dismiss">Acknowledge &amp; Continue</button>
+  </div>
+</div>
+
+<script>
+  const CHUNK_MS = 15000; // drift analysis every 15 seconds
+
+  let ws, recorder, recognition;
+  let tolerance = 0.40;
+  let overlayPending = false;
+  let finalTranscript = '';
+  let countdownTimer = null;
+
+  const $ = id => document.getElementById(id);
+
+  $('tol-slider').oninput = e => {
+    tolerance = parseFloat(e.target.value);
+    $('tolerance-val').textContent = tolerance.toFixed(2);
+  };
+
+  $('start-btn').onclick = async () => {
+    const ctx = $('ctx').value.trim();
+    if (!ctx) { alert('Please enter a meeting context first.'); return; }
+    $('setup-panel').style.display = 'none';
+    $('monitor-panel').style.display = 'block';
+    $('ctx-display').textContent = ctx.length > 90 ? ctx.slice(0, 90) + '…' : ctx;
+    try { await connect(ctx); }
+    catch (e) { setStatus('Error: ' + e.message, ''); }
+  };
+
+  $('stop-btn').onclick = stop;
+  $('dismiss').onclick = () => {
+    $('overlay').classList.remove('show');
+    overlayPending = false;
+  };
+
+  // ── Live transcript via Web Speech API ───────────────────────────────────
+  function startSpeechRecognition() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) {
+      $('live-text').textContent = '(Live transcript not supported in this browser — use Chrome)';
+      return;
+    }
+    recognition = new SR();
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'en-US';
+
+    recognition.onresult = event => {
+      let interim = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        const t = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += t + ' ';
+        } else {
+          interim = t;
+        }
+      }
+      $('live-text').innerHTML =
+        '<span style=”color:#ddd”>' + finalTranscript + '</span>' +
+        '<span style=”color:#666”>' + interim + '</span>';
+    };
+
+    // Auto-restart if it stops (browser kills it after silence)
+    recognition.onend = () => {
+      if (recorder && recorder.state === 'recording') recognition.start();
+    };
+
+    recognition.onerror = e => {
+      if (e.error !== 'no-speech') console.warn('SR:', e.error);
+    };
+
+    recognition.start();
+  }
+
+  // ── Countdown to next drift check ────────────────────────────────────────
+  function startCountdown() {
+    let secs = CHUNK_MS / 1000;
+    clearInterval(countdownTimer);
+    countdownTimer = setInterval(() => {
+      secs--;
+      if (secs <= 0) {
+        $('next-check').textContent = 'Analyzing…';
+        clearInterval(countdownTimer);
+      } else {
+        $('next-check').textContent = 'Next drift check in ' + secs + 's';
+      }
+    }, 1000);
+  }
+
+  // ── WebSocket + MediaRecorder ─────────────────────────────────────────────
+  async function connect(ctx) {
+    ws = new WebSocket('ws://localhost:8001/ws');
+
+    ws.onopen = async () => {
+      setStatus('Connected — starting microphone…', 'connected');
+      ws.send(JSON.stringify({ context: ctx, tolerance }));
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+      // MediaRecorder fires every 15s → one chunk = one drift analysis window
+      recorder = new MediaRecorder(stream);
+      recorder.ondataavailable = e => {
+        if (e.data.size > 0 && ws.readyState === WebSocket.OPEN) {
+          ws.send(e.data);
+          startCountdown(); // reset countdown after each chunk sent
+        }
+      };
+
+      ws.onmessage = e => render(JSON.parse(e.data));
+      ws.onclose = () => setStatus('Disconnected', '');
+      ws.onerror = () => setStatus('Connection error — is the backend running?', '');
+
+      recorder.start(CHUNK_MS);
+      startSpeechRecognition();
+      startCountdown();
+      setStatus('Recording & monitoring…', 'recording');
+    };
+
+    ws.onerror = () => setStatus('Cannot reach server at localhost:8001 — start backend first.', '');
+  }
+
+  // ── Render drift result from backend ─────────────────────────────────────
+  function render({ text, drift, alert: isAlert }) {
+    if (text) $('transcript-text').textContent = '”' + text + '”';
+
+    $('drift-score').textContent = drift.toFixed(2);
+    $('drift-fill').style.width = Math.min(drift * 100, 100) + '%';
+
+    if (drift < 0.30) {
+      setDriftClass('', '#27ae60', 'On Topic', '');
+      $('banner').classList.remove('show');
+    } else if (!isAlert) {
+      setDriftClass('warn', '#f39c12', 'Slight Drift', 'warn');
+      $('banner').classList.remove('show');
+    } else {
+      setDriftClass('alert', '#e74c3c', 'Off Topic', 'alert');
+      $('banner').classList.add('show');
+      if (!overlayPending) {
+        overlayPending = true;
+        $('overlay-transcript').textContent = text || '(no transcript)';
+        $('overlay-meta').textContent =
+          'Drift score: ' + drift.toFixed(2) + '  |  Threshold: ' + tolerance.toFixed(2);
+        $('overlay').classList.add('show');
+      }
+    }
+  }
+
+  function setDriftClass(scoreClass, barColor, badgeText, badgeClass) {
+    $('drift-score').className = scoreClass;
+    $('drift-fill').style.background = barColor;
+    $('badge').textContent = badgeText;
+    $('badge').className = 'badge ' + badgeClass;
+  }
+
+  function setStatus(msg, dotClass) {
+    $('status-text').textContent = msg;
+    $('dot').className = 'dot ' + dotClass;
+  }
+
+  function stop() {
+    if (recognition) { try { recognition.stop(); } catch(_){} }
+    if (recorder && recorder.state !== 'inactive') recorder.stop();
+    if (ws) ws.close();
+    clearInterval(countdownTimer);
+    $('banner').classList.remove('show');
+    $('overlay').classList.remove('show');
+    $('monitor-panel').style.display = 'none';
+    $('setup-panel').style.display = 'block';
+    finalTranscript = '';
+    $('live-text').textContent = '';
+    setStatus('', '');
+  }
+</script>
+</body>
+</html>

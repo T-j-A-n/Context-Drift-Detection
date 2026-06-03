@@ -1,0 +1,22 @@
+fastapi>=0.135
+uvicorn>=0.44
+numpy<2
+torch>=2.1
+
+# Step 1 – ASR: Distil-Whisper
+transformers>=4.46
+
+# Step 2 – Speaker Diarization (needs HF_TOKEN env var)
+pyannote.audio>=3.1
+
+# Step 3 – Coreference Resolution (NeuralCoref replacement for spaCy 3.x)
+spacy>=3.7
+coreferee
+
+# Step 4 – Semantic Drift
+sentence-transformers>=5.0
+scikit-learn>=1.3
+
+# Audio
+pydub>=0.25
+librosa>=0.11
